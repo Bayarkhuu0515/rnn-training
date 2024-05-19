@@ -2,10 +2,46 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import re
 import numpy as np
-from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
+import tensorflow as tf
+from keras.models import load_model
+
+# Load the saved model
 model = load_model('cyrillic_transliteration_model.h5')
+print("Model loaded successfully.")
+
+# Read the character mappings from the training data files
+with open('cyrillwrong.txt', 'r') as file:
+    lines = file.readlines()
+    cyrillic_wrong_texts = [line.strip() for line in lines]
+with open('ugiin_san.txt', 'r') as file:
+    lines = file.readlines()
+    cyrillic_texts = [line.strip() for line in lines]
+
+# Create a character mapping, ensuring all unique characters are captured
+latin_chars = sorted(set(''.join(cyrillic_wrong_texts)))
+cyrillic_chars = sorted(set(''.join(cyrillic_texts)))
+
+latin_to_index = {char: idx + 1 for idx, char in enumerate(latin_chars)}
+cyrillic_to_index = {char: idx + 1 for idx, char in enumerate(cyrillic_chars)}
+
+index_to_cyrillic = {idx: char for char, idx in cyrillic_to_index.items()}
+
+max_seq_length = max(len(seq) for seq in cyrillic_wrong_texts)
+
+# Convert text to sequences of integers
+def text_to_sequence(text, char_to_index):
+    return [char_to_index.get(char, 0) for char in text]  # Use 0 for unknown characters
+
+# Function to predict transliteration using the loaded model
+def predictWithAi(text):
+    sequence = text_to_sequence(text, latin_to_index)
+    sequence = pad_sequences([sequence], maxlen=max_seq_length, padding='post')
+    prediction = model.predict(sequence)
+    predicted_sequence = np.argmax(prediction[0], axis=-1)
+    return ' '.join([index_to_cyrillic.get(idx, ' ') for idx in predicted_sequence if idx > 0])
+
 
 # Simple mapping dictionary for Latin to Cyrillic
 latin_to_cyrillic_simple = {
@@ -94,7 +130,7 @@ def hybrid_translation(text):
     text = rule_based_transliteration(text)
     print("After rule-based transliteration:", text)
     # Apply AI-based transliteration
-    text = ai_transliterate(text)
+    text = predictWithAi(text)
     print("After AI-based transliteration:", text)
     return text
 
