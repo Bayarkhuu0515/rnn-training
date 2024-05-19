@@ -1,6 +1,9 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
+from keras.models import load_model
+
+# returns a compiled model
 from tensorflow.keras.layers import SimpleRNN, Dense, Embedding, TimeDistributed
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
@@ -67,7 +70,7 @@ model.summary()
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
 # Train the model
-history = model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test), callbacks=[early_stopping])
+history = model.fit(X_train, y_train, epochs=1, validation_data=(X_test, y_test), callbacks=[early_stopping])
 
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test)
@@ -116,3 +119,30 @@ test_texts = [
 for text in test_texts:
     print(f'wrong Cyrillic: {text}')
     print(f'Cyrillic: {transliterate(text)}')
+
+#load model
+model = load_model('cyrillic_transliteration_model.h5')
+#predict using the model
+def predict(text):
+    text = text_to_sequence(text, latin_to_index)
+    text = pad_sequences([text], maxlen=max_seq_length, padding='post')
+    prediction = model.predict(text)
+    prediction = np.argmax(prediction, axis=-1)
+    return ''.join([index_to_cyrillic[idx] for idx in prediction[0] if idx > 0])
+
+# Define your test inputs
+test_texts = [
+    "саин байна уу",
+    "бяртай",
+    "мэндчилэгөө",
+    "сайхан байна уу",
+    "шина тест",
+    "хоол бол хоол",
+    "сайн байна уу",
+    "өндор"
+]
+
+# Use the predict function to get the outputs
+for text in test_texts:
+    print(f'wrong Cyrillic: {text}')
+    print(f'Cyrillic: {predict(text)}')

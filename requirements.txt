@@ -6,3 +6,4 @@ jupyter
 scikit-learn
 pandas
 plotly
+h5py
