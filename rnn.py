@@ -4,36 +4,21 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import SimpleRNN, Dense, Embedding, TimeDistributed
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
-import pandas as pd
 import plotly.graph_objects as go
 import plotly.offline as pyo
 from tensorflow.keras.callbacks import EarlyStopping
 
-pyo.init_notebook_mode() # Initialize Plotly
-
-
-
-
+pyo.init_notebook_mode()  # Initialize Plotly
 
 # Read the .svc file
 # df = pd.read_csv('words.svc', sep=';', header=None, names=['wrongwords ', 'correctwords'])
 # Create dummy data for wrong and correct Cyrillic texts
 with open('cyrillwrong.txt', 'r') as file:
-    # Read a single line from the file
     lines = file.readlines()
-    # Strip any leading/trailing whitespace characters
     cyrillic_wrong_texts = [line.strip() for line in lines]
 with open('ugiin_san.txt', 'r') as file:
-    # Read a single line from the file
     lines = file.readlines()
-    # Strip any leading/trailing whitespace characters
     cyrillic_texts = [line.strip() for line in lines]
-
-# Extract the wrong and correct Cyrillic texts
-cyrillic_wrong_texts = cyrillic_wrong_texts
-# df['wrongwords'].tolist()
-cyrillic_texts = cyrillic_texts
-# df['correctwords'].tolist()
 
 # Create a character mapping, ensuring all unique characters are captured
 latin_chars = sorted(set(''.join(cyrillic_wrong_texts)))
@@ -71,19 +56,18 @@ embedding_dim = 64
 rnn_units = 128
 
 model = Sequential()
-model.add(Embedding(input_dim=vocab_size_latin, output_dim=embedding_dim))
+model.add(Embedding(input_dim=vocab_size_latin, output_dim=embedding_dim, input_length=max_seq_length))
 model.add(SimpleRNN(rnn_units, return_sequences=True))
 model.add(TimeDistributed(Dense(vocab_size_cyrillic, activation='softmax')))
 
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+model.build(input_shape=(None, max_seq_length))
 model.summary()
 
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
 # Train the model
 history = model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test), callbacks=[early_stopping])
-
-
 
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test)
@@ -92,15 +76,12 @@ print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
 model.save('cyrillic_transliteration_model.h5')
 print("Model saved to 'cyrillic_transliteration_model.h5'")
 
-
 # Plotting the training and validation loss using Plotly
-# Plotting the training and validation loss using Plotly in offline mode
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=list(range(len(history.history['loss']))), y=history.history['loss'], mode='lines', name='Training Loss'))
 fig.add_trace(go.Scatter(x=list(range(len(history.history['val_loss']))), y=history.history['val_loss'], mode='lines', name='Validation Loss'))
 fig.update_layout(title='Model Loss', xaxis_title='Epoch', yaxis_title='Loss')
 pyo.plot(fig, filename='loss_plot.html')  # This will create an HTML file and open it in the default web browser
-
 
 # Plotting the training and validation accuracy using Plotly
 fig = go.Figure()
@@ -135,13 +116,3 @@ test_texts = [
 for text in test_texts:
     print(f'wrong Cyrillic: {text}')
     print(f'Cyrillic: {transliterate(text)}')
-
-
-
-
-# Evaluate the model
-loss, accuracy = model.evaluate(X_test, y_test)
-print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
-
-model.summary()
-
