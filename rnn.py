@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.offline as pyo
+from tensorflow.keras.callbacks import EarlyStopping
 
 pyo.init_notebook_mode() # Initialize Plotly
 
@@ -17,28 +18,16 @@ pyo.init_notebook_mode() # Initialize Plotly
 # Read the .svc file
 # df = pd.read_csv('words.svc', sep=';', header=None, names=['wrongwords ', 'correctwords'])
 # Create dummy data for wrong and correct Cyrillic texts
-cyrillic_wrong_texts = [
-    "саин баина уу",
-    "баяртай",
-    "мэндчилэгээ",
-    "саихан баина уу",
-    "шинэ тест",
-    "хоол бол хоол",
-    "сайн байна уу",
-    "Зандэн",
-    "өндэг",
-]
-cyrillic_texts = [
-    "сайн байна уу",
-    "баяртай",
-    "мэндчилэгээ",
-    "сайхан байна уу",
-    "шинэ тест",
-    "хоол бол хоол",
-    "сайн байна уу",
-    "Зандaн",
-    "өндөг",
-]
+with open('cyrillwrong.txt', 'r') as file:
+    # Read a single line from the file
+    lines = file.readlines()
+    # Strip any leading/trailing whitespace characters
+    cyrillic_wrong_texts = [line.strip() for line in lines]
+with open('ugiin_san.txt', 'r') as file:
+    # Read a single line from the file
+    lines = file.readlines()
+    # Strip any leading/trailing whitespace characters
+    cyrillic_texts = [line.strip() for line in lines]
 
 # Extract the wrong and correct Cyrillic texts
 cyrillic_wrong_texts = cyrillic_wrong_texts
@@ -89,14 +78,19 @@ model.add(TimeDistributed(Dense(vocab_size_cyrillic, activation='softmax')))
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 model.summary()
 
+early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+
 # Train the model
-history = model.fit(X_train, y_train, epochs=1000, validation_data=(X_test, y_test))
+history = model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test), callbacks=[early_stopping])
 
 
 
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test)
 print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
+
+model.save('cyrillic_transliteration_model.h5')
+print("Model saved to 'cyrillic_transliteration_model.h5'")
 
 
 # Plotting the training and validation loss using Plotly
@@ -127,14 +121,14 @@ def transliterate(text):
 
 # Define your test inputs
 test_texts = [
-    "сайн байна уу",
-    "баяртай",
-    "мэндчилэгээ",
+    "саин байна уу",
+    "бяртай",
+    "мэндчилэгөө",
     "сайхан байна уу",
-    "шинэ тест",
+    "шина тест",
     "хоол бол хоол",
     "сайн байна уу",
-    "өндөр"
+    "өндор"
 ]
 
 # Use the transliterate function to get the outputs
@@ -148,3 +142,6 @@ for text in test_texts:
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test)
 print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
+
+model.summary()
+
