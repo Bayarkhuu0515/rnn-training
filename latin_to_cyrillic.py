@@ -40,7 +40,7 @@ def predictWithAi(text):
     sequence = pad_sequences([sequence], maxlen=max_seq_length, padding='post')
     prediction = model.predict(sequence)
     predicted_sequence = np.argmax(prediction[0], axis=-1)
-    return ' '.join([index_to_cyrillic.get(idx, ' ') for idx in predicted_sequence if idx > 0])
+    return ''.join([index_to_cyrillic.get(idx, '') for idx in predicted_sequence if idx > 0])
 
 
 # Simple mapping dictionary for Latin to Cyrillic
@@ -89,34 +89,6 @@ def rule_based_transliteration(text):
     new_words = [transliterate_word(word) for word in words]
     return ' '.join(new_words)
 
-
-# Function to transliterate using AI model
-def ai_transliterate(text):
-    # Create a character mapping similar to what was used during training
-    latin_chars = sorted(set(''.join(latin_to_cyrillic_simple.keys())))
-    latin_to_index = {char: idx + 1 for idx, char in enumerate(latin_chars)}
-    
-    # Convert the input text to a sequence of integers based on the mapping
-    sequence = [latin_to_index.get(char, 0) for char in text]
-    
-    # Pad the sequence to match the maximum sequence length expected by the model
-    sequence = pad_sequences([sequence], maxlen=100, padding='post')
-    
-    # Pass the padded sequence through the model to get predictions
-    print("Padded sequence shape:", sequence.shape)
-    prediction = model.predict(sequence)
-    print("Prediction shape:", prediction.shape)
-    
-    # Decode the predicted sequence back into characters using the reverse mapping
-    index_to_cyrillic = {idx: char for char, idx in latin_to_index.items()}
-    predicted_sequence = [index_to_cyrillic[idx] for idx in np.argmax(prediction[0], axis=-1) if idx > 0]
-    print("Predicted sequence:", predicted_sequence)
-    
-    # Convert the predicted sequence back into a string
-    transliterated_text = ''.join(predicted_sequence)
-    print("Transliterated text:", transliterated_text)
-    
-    return transliterated_text.strip()  # Strip any leading/trailing whitespace
 
 
 
