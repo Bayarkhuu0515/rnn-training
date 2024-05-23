@@ -16,10 +16,10 @@ pyo.init_notebook_mode()  # Initialize Plotly
 # Read the .svc file
 # df = pd.read_csv('words.svc', sep=';', header=None, names=['wrongwords ', 'correctwords'])
 # Create dummy data for wrong and correct Cyrillic texts
-with open('cyrillwrong.txt', 'r') as file:
+with open('wrong.txt', 'r') as file:
     lines = file.readlines()
     cyrillic_wrong_texts = [line.strip() for line in lines]
-with open('ugiin_san.txt', 'r') as file:
+with open('correct.txt', 'r') as file:
     lines = file.readlines()
     cyrillic_texts = [line.strip() for line in lines]
 
@@ -58,6 +58,7 @@ vocab_size_cyrillic = len(cyrillic_chars) + 1
 embedding_dim = 64
 rnn_units = 128
 
+
 model = Sequential()
 model.add(Embedding(input_dim=vocab_size_latin, output_dim=embedding_dim, input_length=max_seq_length))
 model.add(SimpleRNN(rnn_units, return_sequences=True))
@@ -70,7 +71,7 @@ model.summary()
 early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
 # Train the model
-history = model.fit(X_train, y_train, epochs=1, validation_data=(X_test, y_test), callbacks=[early_stopping])
+history = model.fit(X_train, y_train, epochs=100, validation_data=(X_test, y_test), callbacks=[early_stopping])
 
 # Evaluate the model
 loss, accuracy = model.evaluate(X_test, y_test)
@@ -103,22 +104,6 @@ def transliterate(text):
     predicted_sequence = np.argmax(prediction[0], axis=-1)
     return sequence_to_text(predicted_sequence, index_to_cyrillic)
 
-# Define your test inputs
-test_texts = [
-    "саин байна уу",
-    "бяртай",
-    "мэндчилэгөө",
-    "сайхан байна уу",
-    "шина тест",
-    "хоол бол хоол",
-    "сайн байна уу",
-    "өндор"
-]
-
-# Use the transliterate function to get the outputs
-for text in test_texts:
-    print(f'wrong Cyrillic: {text}')
-    print(f'Cyrillic: {transliterate(text)}')
 
 #load model
 model = load_model('cyrillic_transliteration_model.h5')
@@ -139,7 +124,7 @@ test_texts = [
     "шина тест",
     "хоол бол хоол",
     "сайн байна уу",
-    "өндор"
+    "өндөр"
 ]
 
 # Use the predict function to get the outputs

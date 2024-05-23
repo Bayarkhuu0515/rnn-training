@@ -12,10 +12,10 @@ model = load_model('cyrillic_transliteration_model.h5')
 print("Model loaded successfully.")
 
 # Read the character mappings from the training data files
-with open('cyrillwrong.txt', 'r') as file:
+with open('wrong.txt', 'r') as file:
     lines = file.readlines()
     cyrillic_wrong_texts = [line.strip() for line in lines]
-with open('ugiin_san.txt', 'r') as file:
+with open('correct.txt', 'r') as file:
     lines = file.readlines()
     cyrillic_texts = [line.strip() for line in lines]
 
@@ -34,13 +34,19 @@ max_seq_length = max(len(seq) for seq in cyrillic_wrong_texts)
 def text_to_sequence(text, char_to_index):
     return [char_to_index.get(char, 0) for char in text]  # Use 0 for unknown characters
 
-# Function to predict transliteration using the loaded model
 def predictWithAi(text):
-    sequence = text_to_sequence(text, latin_to_index)
-    sequence = pad_sequences([sequence], maxlen=max_seq_length, padding='post')
-    prediction = model.predict(sequence)
-    predicted_sequence = np.argmax(prediction[0], axis=-1)
-    return ''.join([index_to_cyrillic.get(idx, '') for idx in predicted_sequence if idx > 0])
+    words = text.split()  # Split the text into individual words
+    transliterated_words = []
+
+    for word in words:
+        sequence = text_to_sequence(word, latin_to_index)
+        sequence = pad_sequences([sequence], maxlen=max_seq_length, padding='post')
+        prediction = model.predict(sequence)
+        predicted_sequence = np.argmax(prediction[0], axis=-1)
+        transliterated_word = ''.join([index_to_cyrillic.get(idx, '') for idx in predicted_sequence if idx > 0])
+        transliterated_words.append(transliterated_word)
+
+    return ' '.join(transliterated_words)
 
 
 # Simple mapping dictionary for Latin to Cyrillic
@@ -48,7 +54,8 @@ latin_to_cyrillic_simple = {
     'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'ye': 'е', 'zh': 'ж', 'z': 'з',
     'i': 'и', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п',
     'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х', 'ts': 'ц', 'ch': 'ч',
-    'sh': 'ш', 'y': 'ы', 'e': 'э', 'yu': 'ю', 'ya': 'я', 'yo': 'ё', 'j': 'ж', 'kh' : 'х'
+    'sh': 'ш', 'y': 'ы', 'e': 'э', 'yu': 'ю', 'ya': 'я', 'yo': 'ё', 'j': 'ж', 'kh' : 'х',
+    'w': 'в'
 }
 
 # Function for simple mapping translation
@@ -82,7 +89,10 @@ def rule_based_transliteration(text):
             word = word.replace('у', 'у').replace('У', 'У')
             word = word.replace('о', 'о').replace('О', 'О')
 
-        word = re.sub(r'(?<=[аэиоүуө])и', 'й', word, flags=re.IGNORECASE)
+        word = re.sub(r'(?<=[аэиоүуөя])и', 'й', word, flags=re.IGNORECASE)
+
+        if any(char in 'аоуАОУ' for char in word):
+            word = word.replace('ий', 'ы').replace('ИЙ', 'Ы')
         return word
 
     words = text.split()
@@ -135,6 +145,7 @@ cyrillic_label = tk.Label(root, text="Cyrillic Text:")
 cyrillic_label.pack()
 cyrillic_output = tk.Text(root, height=10, width=50)
 cyrillic_output.pack()
+
 
 # Start the GUI event loop
 root.mainloop()
