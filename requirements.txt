@@ -7,3 +7,5 @@ scikit-learn
 pandas
 plotly
 h5py
+requests
+asyncio

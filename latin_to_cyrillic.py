@@ -4,9 +4,95 @@ import re
 import requests
 import numpy as np
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-
+import asyncio
 import tensorflow as tf
 from keras.models import load_model
+import json
+import threading
+
+import requests
+import json
+
+async def check_spelling_with_api_and_save_to_file(words:str):
+    print('API CALLED')
+    url = "https://api.bolor.net/v1.2/spell-check-short"
+    headers = {
+        "Content-Type": "text/plain",
+        "token": "a3596f7deb1d4e297844c9bcb61956f9327c6e27338db7302ee98551db7495a4"
+    }
+
+    # Join the list of words into a single string
+    response = requests.post(url, data=words.encode('utf-8'), headers=headers)
+    print("API ашиглан боловсруулж буй хариу:")
+    print(response)
+    print("API төвөл")
+    print(response.status_code)
+
+    if response.status_code != 200:
+        print(f"Request failed with status code {response.status_code}")
+        print(response.text)
+        # Хэрэв хүсэлт амжилтгүй болвол хоосон жагсаалт буцаана
+        return []
+
+    try:
+        # JSON хариуг дараалал болгож авах
+        
+        incorrects = response.json()
+        print('Буруу үгс:')
+        print(response.json())
+        
+        # Хэрэв алдаатай үг байвал файлд хадгална
+        with open("wrong.txt", "a+", encoding="utf-8") as file:
+            # Move the cursor to the end of the file
+            file.seek(0, 2)
+    
+            # Check if the file is not empty
+            if file.tell() > 0:
+                # Add a newline if the file is not empty
+                file.write("\n")
+    
+            # Iterate over each word in the incorrects list
+            for word in incorrects:
+                # Write the word followed by a newline character to the file
+                file.write(f"{word}\n")
+                
+        return incorrects
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON response: {e}")
+        # Хэрэв алдаа гарвал хоосон жагсаалт буцаана
+        return []
+
+# Example usage
+words_to_check = "Монгол улсын их сургууль mонгал"
+spell_check_result = check_spelling_with_api_and_save_to_file(words_to_check)
+print(spell_check_result)
+
+
+
+async def correct_word_using_api_and_save_to_correct(word: str):
+    url = "https://api.bolor.net/v1.2/spell-suggest"
+    headers = {
+        "Content-Type": "text/plain",
+        "token": "793a95e0565331fa79994e4ea83bedf07823445fe94dc95c968a208dcca0e094"
+    }
+    data = word.encode('utf-8')
+    
+    response = requests.post(url, json=data, headers=headers)
+    
+    if response.status_code == 200:
+        # add the correct word to the correct.txt file
+        with open("correct.txt", "a+", encoding="utf-8") as file:
+            file.seek(0, 2)
+            if file.tell() > 0:
+                file.write("\n")
+            file.write(response.json())
+
+        return response.json()
+    else:
+        print(f"Error: {response.status_code}, {response.text}")
+        return ''
+
+
 
 model = load_model('cyrillic_transliteration_model.h5')
 print("Model loaded successfully.")
@@ -27,6 +113,9 @@ cyrillic_to_index = {char: idx + 1 for idx, char in enumerate(cyrillic_chars)}
 index_to_cyrillic = {idx: char for char, idx in cyrillic_to_index.items()}
 
 max_seq_length = max(len(seq) for seq in cyrillic_wrong_texts)
+
+
+
 
 def text_to_sequence(text, char_to_index):
     return [char_to_index.get(char, 0) for char in text]  
@@ -101,7 +190,7 @@ def rule_based_transliteration(text):
 
 
 
-def hybrid_translation(text):
+async def hybrid_translation(text):
     text = translate_simple(text)
     print("After simple mapping:", text)
     text = rule_based_transliteration(text)
@@ -110,36 +199,38 @@ def hybrid_translation(text):
     print("after AI transliteration:", text)
     text = rule_based_transliteration(text)
     print("transliteration:", text)
+    # 
+    wrongWordList = await check_spelling_with_api_and_save_to_file(text)
     
-    # API call to spellcheck.gov.mn
-    response = requests.post(
-        "http://spellcheck.gov.mn/scripts/tiny_mce/plugins/spellchecker/rpc.php",
-        data={"text": text}
-    )
-    
-    if response.status_code == 200:
-        if 'application/json' in response.headers.get('Content-Type', ''):
-            try:
-                response_data = response.json()
-                corrected_text = response_data.get('result', text)
-            except ValueError:
-                print("Response is not in JSON format")
-                corrected_text = text
-        else:
-            corrected_text = response.text.strip()
-    else:
-        print(f"API call failed with status code {response.status_code}")
-        corrected_text = text
-    
-    return corrected_text
+    # алдаатай үгүүдийг засах api дуудалт
+    # if(len(wrongWordList) > 0):
+    #     for word in wrongWordList:
+    #         # алдаатай үгүүдийг api ашиглан засах
+    #         await correct_word_using_api_and_save_to_correct(word)
+    return text
 
 
 
-def translate(event=None):
+async def translate(event=None):
     latin_text = latin_input.get("1.0", tk.END).strip()
-    cyrillic_text = hybrid_translation(latin_text)
+    cyrillic_text = await hybrid_translation(latin_text)
     cyrillic_output.delete("1.0", tk.END)
     cyrillic_output.insert(tk.END, cyrillic_text)
+
+# Wrapper to run the async function
+def run_translate():
+    asyncio.run_coroutine_threadsafe(translate(), loop)
+
+# Function to run the asyncio event loop in a separate thread
+def start_asyncio_event_loop():
+    global loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+# Create and start a thread running the asyncio event loop
+
+threading.Thread(target=start_asyncio_event_loop, daemon=True).start()
 
 
 root = tk.Tk()
@@ -152,9 +243,9 @@ latin_input = tk.Text(root, height=30, width=100)
 latin_input.pack()
 
 
-latin_input.bind('<Return>', translate)
+latin_input.bind('<Return>', lambda event:run_translate())
 
-translate_button = tk.Button(root, text="Translate", command=translate)
+translate_button = tk.Button(root, text="Translate", command=run_translate)
 translate_button.pack()
 
 cyrillic_label = tk.Label(root, text="Cyrillic Text:")
