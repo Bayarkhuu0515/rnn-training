@@ -1,17 +1,16 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import re
+import requests
 import numpy as np
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 import tensorflow as tf
 from keras.models import load_model
 
-# Load the saved model
 model = load_model('cyrillic_transliteration_model.h5')
 print("Model loaded successfully.")
 
-# Read the character mappings from the training data files
 with open('wrong.txt', 'r') as file:
     lines = file.readlines()
     cyrillic_wrong_texts = [line.strip() for line in lines]
@@ -19,7 +18,6 @@ with open('correct.txt', 'r') as file:
     lines = file.readlines()
     cyrillic_texts = [line.strip() for line in lines]
 
-# Create a character mapping, ensuring all unique characters are captured
 latin_chars = sorted(set(''.join(cyrillic_wrong_texts)))
 cyrillic_chars = sorted(set(''.join(cyrillic_texts)))
 
@@ -30,12 +28,11 @@ index_to_cyrillic = {idx: char for char, idx in cyrillic_to_index.items()}
 
 max_seq_length = max(len(seq) for seq in cyrillic_wrong_texts)
 
-# Convert text to sequences of integers
 def text_to_sequence(text, char_to_index):
-    return [char_to_index.get(char, 0) for char in text]  # Use 0 for unknown characters
+    return [char_to_index.get(char, 0) for char in text]  
 
 def predictWithAi(text):
-    words = text.split()  # Split the text into individual words
+    words = text.split() 
     transliterated_words = []
 
     for word in words:
@@ -49,16 +46,14 @@ def predictWithAi(text):
     return ' '.join(transliterated_words)
 
 
-# Simple mapping dictionary for Latin to Cyrillic
 latin_to_cyrillic_simple = {
     'a': 'а', 'b': 'б', 'v': 'в', 'g': 'г', 'd': 'д', 'ye': 'е', 'zh': 'ж', 'z': 'з',
     'i': 'и', 'k': 'к', 'l': 'л', 'm': 'м', 'n': 'н', 'o': 'о', 'p': 'п',
     'r': 'р', 's': 'с', 't': 'т', 'u': 'у', 'f': 'ф', 'h': 'х', 'ts': 'ц', 'ch': 'ч',
-    'sh': 'ш', 'y': 'ы', 'e': 'э', 'yu': 'ю', 'ya': 'я', 'yo': 'ё', 'j': 'ж', 'kh' : 'х',
-    'w': 'в'
+    'sh': 'ш', 'e': 'э', 'yu': 'ю', 'ya': 'я', 'yo': 'ё', 'j': 'ж', 'kh' : 'х',
+    'w': 'в', 'y':'я'
 }
 
-# Function for simple mapping translation
 def translate_simple(text):
     result = ''
     skip = 0
@@ -85,11 +80,14 @@ def rule_based_transliteration(text):
         if any(char in 'эиөЭИӨ' for char in word):
             word = word.replace('у', 'ү').replace('У', 'Ү')
             word = word.replace('о', 'ө').replace('О', 'Ө')
-        elif any(char in 'аоуАОУ' for char in word):
-            word = word.replace('у', 'у').replace('У', 'У')
+            word = word.replace('ё', 'е').replace('ё', 'е')
+        elif any(char in 'аоуыАОУ' for char in word):
+            word = word.replace('ү', 'у').replace('ү', 'У')
             word = word.replace('о', 'о').replace('О', 'О')
 
         word = re.sub(r'(?<=[аэиоүуөя])и', 'й', word, flags=re.IGNORECASE)
+        word = re.sub(r'(?<=[о])я', 'ё', word, flags=re.IGNORECASE)
+        word = re.sub(r'(?<=[өү])я', 'е', word, flags=re.IGNORECASE)
 
         if any(char in 'аоуАОУ' for char in word):
             word = word.replace('ий', 'ы').replace('ИЙ', 'Ы')
@@ -103,49 +101,66 @@ def rule_based_transliteration(text):
 
 
 
-# Hybrid translation function
 def hybrid_translation(text):
-    # Apply simple mapping translation first
     text = translate_simple(text)
     print("After simple mapping:", text)
-    # Apply rule-based transliteration
     text = rule_based_transliteration(text)
-    print("After rule-based transliteration:", text)
-    # Apply AI-based transliteration
+    print("Wrong:", text)
     text = predictWithAi(text)
-    print("After AI-based transliteration:", text)
-    return text
+    print("after AI transliteration:", text)
+    text = rule_based_transliteration(text)
+    print("transliteration:", text)
+    
+    # API call to spellcheck.gov.mn
+    response = requests.post(
+        "http://spellcheck.gov.mn/scripts/tiny_mce/plugins/spellchecker/rpc.php",
+        data={"text": text}
+    )
+    
+    if response.status_code == 200:
+        if 'application/json' in response.headers.get('Content-Type', ''):
+            try:
+                response_data = response.json()
+                corrected_text = response_data.get('result', text)
+            except ValueError:
+                print("Response is not in JSON format")
+                corrected_text = text
+        else:
+            corrected_text = response.text.strip()
+    else:
+        print(f"API call failed with status code {response.status_code}")
+        corrected_text = text
+    
+    return corrected_text
 
-# Function to handle translation and update the GUI
+
+
 def translate(event=None):
     latin_text = latin_input.get("1.0", tk.END).strip()
     cyrillic_text = hybrid_translation(latin_text)
     cyrillic_output.delete("1.0", tk.END)
     cyrillic_output.insert(tk.END, cyrillic_text)
 
-# Set up the GUI
+
 root = tk.Tk()
 root.title("Latin to Cyrillic Translator")
 
-# Latin input text area
+
 latin_label = tk.Label(root, text="Latin Text:")
 latin_label.pack()
-latin_input = tk.Text(root, height=10, width=50)
+latin_input = tk.Text(root, height=30, width=100)
 latin_input.pack()
 
-# Bind the Enter key to the translate function
+
 latin_input.bind('<Return>', translate)
 
-# Translate button
 translate_button = tk.Button(root, text="Translate", command=translate)
 translate_button.pack()
 
-# Cyrillic output text area
 cyrillic_label = tk.Label(root, text="Cyrillic Text:")
 cyrillic_label.pack()
-cyrillic_output = tk.Text(root, height=10, width=50)
+cyrillic_output = tk.Text(root, height=30, width=100)
 cyrillic_output.pack()
 
 
-# Start the GUI event loop
 root.mainloop()

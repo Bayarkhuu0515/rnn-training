@@ -55,8 +55,8 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Define the RNN model
 vocab_size_latin = len(latin_chars) + 1
 vocab_size_cyrillic = len(cyrillic_chars) + 1
-embedding_dim = 64
-rnn_units = 128
+embedding_dim = 128
+rnn_units = 256
 
 
 model = Sequential()
